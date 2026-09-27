@@ -1844,16 +1844,17 @@ pub fn emit_draw(enc: &mut FrameEncoder, draw: DrawOp) {
     drop(t_keys);
     // 2. Resolve the VS and PS libraries. The hot path is a borrow-probe of
     //    the source-keyed index (no per-draw content hash, no clone); the
-    //    `disk_key` Xxh3 + warm-cache bridge + enqueue happen lazily inside,
-    //    only on a miss (~once per shader). A build still in flight sends
-    //    the draw to the slow path, which installs finished builds first.
+    //    slow path owns the disk-key hash, warm-cache bridge and enqueue.
+    //    An unbuilt or failed stage sends the draw there; it installs
+    //    finished builds before probing again and queues both stages before
+    //    deciding whether to wait, defer or skip the draw.
     let t_lookup = CycleAddTimer::start(enc.op_sub_detail_ptr(OpSubDetail::RLookup));
-    let libraries = match enc.resolve_vs_library(vs) {
-        Resolution::Ready(vs_handles) => match enc.resolve_ps_library(ps, ps_variant) {
-            Resolution::Ready(ps_handles) => Some((vs_handles, ps_handles)),
-            Resolution::Pending(_) | Resolution::Failed => None,
+    let libraries = match enc.lookup_vs_library(vs) {
+        Some(Some(vs_handles)) => match enc.lookup_ps_library(ps, ps_variant) {
+            Some(Some(ps_handles)) => Some((*vs_handles, *ps_handles)),
+            None | Some(None) => None,
         },
-        Resolution::Pending(_) | Resolution::Failed => None,
+        None | Some(None) => None,
     };
     let Some((vs_handles, ps_handles)) = libraries.or_else(|| {
         resolve_libraries_slow(
