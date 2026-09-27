@@ -3,7 +3,7 @@ use mtld3d_shared::mtl::{PixelFormat, Swizzle};
 use mtld3d_types::{
     D3DFMT_A1R5G5B5, D3DFMT_A2B10G10R10, D3DFMT_A2R10G10B10, D3DFMT_A4R4G4B4, D3DFMT_A8,
     D3DFMT_A8B8G8R8, D3DFMT_A8L8, D3DFMT_A8R8G8B8, D3DFMT_A16B16G16R16, D3DFMT_A16B16G16R16F,
-    D3DFMT_A32B32G32R32F, D3DFMT_ATI1, D3DFMT_D15S1, D3DFMT_D16, D3DFMT_D16_LOCKABLE,
+    D3DFMT_A32B32G32R32F, D3DFMT_ATI1, D3DFMT_ATI2, D3DFMT_D15S1, D3DFMT_D16, D3DFMT_D16_LOCKABLE,
     D3DFMT_D24FS8, D3DFMT_D24S8, D3DFMT_D24X4S4, D3DFMT_D24X8, D3DFMT_D32, D3DFMT_D32F_LOCKABLE,
     D3DFMT_DF16, D3DFMT_DF24, D3DFMT_DXT1, D3DFMT_DXT2, D3DFMT_DXT3, D3DFMT_DXT4, D3DFMT_DXT5,
     D3DFMT_G16R16, D3DFMT_G16R16F, D3DFMT_G32R32F, D3DFMT_INTZ, D3DFMT_L8, D3DFMT_L16, D3DFMT_NV12,
@@ -171,6 +171,7 @@ pub const fn format_name(d3d_format: u32) -> &'static str {
         D3DFMT_G32R32F => "G32R32F",
         D3DFMT_A32B32G32R32F => "A32B32G32R32F",
         D3DFMT_ATI1 => "ATI1",
+        D3DFMT_ATI2 => "ATI2",
         D3DFMT_V8U8 => "V8U8",
         D3DFMT_A2B10G10R10 => "A2B10G10R10",
         D3DFMT_A2R10G10B10 => "A2R10G10B10",
@@ -942,6 +943,17 @@ const fn lookup_d3d_format(d3d_format: u32) -> Option<FormatMapping> {
             block_height: 4,
             block_bytes: 8, // ATI1N (BC4): single red channel — replicate to RGB, alpha = 1.0.
             swizzle: Some([Swizzle::Red, Swizzle::Red, Swizzle::Red, Swizzle::One]),
+            has_alpha: false,
+        }),
+        D3DFMT_ATI2 => Some(FormatMapping {
+            metal_pixel_format: PixelFormat::Bc5RgUnorm,
+            bytes_per_pixel: 0,
+            block_width: 4,
+            block_height: 4,
+            block_bytes: 16,
+            // ATI2N (3Dc) keeps X in the second BC5 block and Y in the first:
+            // swap them back, and read 1.0 for the unused channels.
+            swizzle: Some([Swizzle::Green, Swizzle::Red, Swizzle::One, Swizzle::One]),
             has_alpha: false,
         }),
         _ => None,

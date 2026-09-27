@@ -50,8 +50,8 @@ use mtld3d_shared::{
 use mtld3d_types::{
     D3D_MAX_SIMULTANEOUS_RENDERTARGETS, D3DCAPS9, D3DCLEAR_STENCIL, D3DCLEAR_TARGET,
     D3DCLEAR_ZBUFFER, D3DDEVICE_CREATION_PARAMETERS, D3DDISPLAYMODE,
-    D3DERR_UNSUPPORTEDTEXTUREFILTER, D3DFMT_ATI1, D3DFMT_INDEX16, D3DFMT_INDEX32, D3DFMT_UYVY,
-    D3DFMT_YUY2, D3DGAMMARAMP, D3DLIGHT9, D3DMATERIAL9, D3DMATRIX, D3DPOOL_DEFAULT,
+    D3DERR_UNSUPPORTEDTEXTUREFILTER, D3DFMT_ATI1, D3DFMT_ATI2, D3DFMT_INDEX16, D3DFMT_INDEX32,
+    D3DFMT_UYVY, D3DFMT_YUY2, D3DGAMMARAMP, D3DLIGHT9, D3DMATERIAL9, D3DMATRIX, D3DPOOL_DEFAULT,
     D3DPOOL_MANAGED, D3DPOOL_SCRATCH, D3DPOOL_SYSTEMMEM, D3DPRESENT_INTERVAL_DEFAULT,
     D3DPRESENT_INTERVAL_FOUR, D3DPRESENT_INTERVAL_IMMEDIATE, D3DPRESENT_INTERVAL_ONE,
     D3DPRESENT_INTERVAL_THREE, D3DPRESENT_INTERVAL_TWO, D3DPRESENT_PARAMETERS,
@@ -5834,11 +5834,14 @@ extern "system" fn device_create_cube_texture(
         null_out(texture);
         return D3DERR_INVALIDCALL;
     }
-    // ATI1 and packed YUV retain only their CPU SCRATCH resource form. Depth
+    // ATI1, ATI2 and packed YUV retain only their CPU SCRATCH resource form. Depth
     // formats remain unsupported, and render-target cubes require a Metal
     // renderable color format on THIS device (the packed 16-bit members drop
     // out where they are expansion-backed).
-    if (matches!(format, D3DFMT_ATI1 | D3DFMT_YUY2 | D3DFMT_UYVY) && pool != D3DPOOL_SCRATCH)
+    if (matches!(
+        format,
+        D3DFMT_ATI1 | D3DFMT_ATI2 | D3DFMT_YUY2 | D3DFMT_UYVY
+    ) && pool != D3DPOOL_SCRATCH)
         || is_depth_fmt
         || (usage_rt
             && !crate::direct3d9::is_render_target_format_on_device(format, expand_packed16))

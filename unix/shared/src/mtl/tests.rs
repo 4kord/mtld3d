@@ -178,6 +178,7 @@ fn block_layout_table() {
         (PixelFormat::Bc2RgbaSrgb, 16),
         (PixelFormat::Bc3Rgba, 16),
         (PixelFormat::Bc3RgbaSrgb, 16),
+        (PixelFormat::Bc5RgUnorm, 16),
     ] {
         let block = format.block_layout();
         assert_eq!(block.width(), 4, "{format:?} spans four pixels");
