@@ -140,6 +140,57 @@ make check        # the pre-commit gate: fmt, clippy, audit, doc
 `make bundle` packs the release tarball and its debug symbols. Every other
 target and variable is documented in the Makefile beside its definition.
 
+`EC=1` adds an opt-in leg for an arm64 Wine. `EC=1 make` also builds
+`d3d9.dll` and `mtld3d.dll` as ARM64X images, whose ARM64EC half an x64 game
+runs as native code instead of translating it. `EC=1 make install` puts them
+into `lib/wine/aarch64-windows` of the arm64 Wine `WINE_ARM64` names, with the
+arm64 `mtld3d.so` in its `aarch64-unix`; the x86 install trees get nothing
+more than without `EC=1`. That Wine then loads the pair for x64 processes in
+prefixes created after the install; 32-bit games keep loading the i386 DLLs.
+`EC=1 make test` adds a leg that runs the x64 end-to-end suite against that
+pair, `EC=1 make conformance` one that runs the x86_64 conformance binary
+against it, `EC=1 make bundle` adds the pair to both archives and
+`EC=1 make check` lints both halves. Without `EC=1` no target builds,
+installs, tests or checks any of it.
+
+`ARM64=1` is the other half: the i686 and x86_64 builds that ship, under an
+arm64 Wine. `ARM64=1 make install` puts them into `i386-windows` and
+`x86_64-windows` of `WINE_ARM64`, with the arm64 `mtld3d.so`, and replaces
+the `d3d9.dll` and `mtld3d.dll` of its `aarch64-windows`, ours from an
+`EC=1` install or Wine's own, with x64 markers, so that x64 processes load the
+x86_64 build (`INSTALL.md` says why). `ARM64=1 make test` and
+`ARM64=1 make conformance` add a leg per arch under that Wine. `ARM64=1`
+needs `WINE_ARM64` and none of the ARM64X toolchain below. With both
+switches, `make install` puts all three builds in and x64 processes get the
+ARM64X one, and `make test` runs all three arm64 legs.
+
+Every arm64 leg runs in a private clone of `WINE_ARM64` with a prefix created
+for the run, so the legs never see each other's DLLs and never write into
+`WINE_ARM64` itself; only `make install` does. The same switches move
+`make bench` and `make bench-ab` onto that Wine, and `make bench-variants`
+compares the layouts with each other (`CONTRIBUTING.md`, Benchmarks).
+
+The leg needs, beyond the above, a toolchain and four paths. None of the paths
+has a default: each comes from the environment, and a target that needs one
+fails naming it when it is unset or points at the wrong thing.
+
+- llvm-mingw, for its ARM64 and ARM64EC CRT; `LLVM_MINGW` names the install.
+- LLD 23 or newer as `lld-link`, which Homebrew's `lld` formula provides
+  (`brew install lld`); `ARM64X_LLD` names that `lld-link`. An older LLD links
+  an image whose x64 view runs the ARM64 view's TLS callbacks.
+- The Rust targets `aarch64-pc-windows-msvc` and `arm64ec-pc-windows-msvc`,
+  which `EC=1 make setup-rust` adds.
+- Wine's ARM64X link archives, which the "ARM64X link libraries" step of
+  [wine-build](https://github.com/athei/wine-build) stages as
+  `dist/wine-arm64x`; `WINE_SDK_ARM64X` names that tree. The build and
+  `EC=1 make check` read it.
+- An arm64 Wine, such as CrossOver 27's; `WINE_ARM64` names the directory
+  holding its `bin/wine` and `lib/wine`. Only the install, test and
+  conformance targets of `EC=1` and `ARM64=1` read it, so `EC=1 make` and
+  `EC=1 make check` run without it.
+
+The leg checks for each of these before it builds and names what is missing.
+
 ## Architecture
 
 ```

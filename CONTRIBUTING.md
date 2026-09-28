@@ -39,6 +39,21 @@ Two commands, both green before you commit:
   many of its checks fail by design, so it gates on a regression against a
   baseline instead of on zero failures.
 
+Two opt-in switches (see the `README.md`) add legs that run under an arm64
+Wine, the one `WINE_ARM64` names. `ARM64=1` adds `test-e2e-i686-arm64` and
+`test-e2e-x86_64-arm64` to `make test`, the shipping builds under that Wine,
+and `EC=1` adds `test-e2e-arm64x`, the x64 suite against the ARM64X build,
+beside a `make check` leg that lints its two halves. `make conformance` gets
+the matching `conformance-*-arm64` and `conformance-arm64x` legs
+(`unix/conformance/CONFORMANCE.md`, "The arm64-runtime legs"). Each of them
+installs into a private clone of `WINE_ARM64`, creates a fresh prefix for it
+(a prefix only knows the builtins that were installed when it was made) and
+runs one test at a time. The end-to-end ones leave out one test with the
+runner's `--skip`,
+`window_lifecycle::devices_and_windows_come_and_go_on_several_threads_at_once`,
+which deadlocks in that Wine's winemac; the Makefile says why beside the skip.
+The environment variables the legs read are listed in the `README.md`.
+
 `make fmt` uses nightly rustfmt. If a toolchain bump reformats files you never
 touched, that churn is its own pull request, not a hand-revert and not a passenger
 in yours.
@@ -80,7 +95,7 @@ that touches `docs/CONVENTIONS.md`.
 
 ## Reading a test run
 
-The end-to-end suite is four test binaries per architecture, and the runner
+The end-to-end suite is five test binaries per architecture, and the runner
 in `unix/e2e` runs each one once under Wine with every test of the binary on
 `JOBS` threads of that process (four at a time by default; the Makefile says
 what that assumes of the Wine it runs under). It prints one
@@ -177,7 +192,7 @@ named test failed and runs the rest again in a fresh process, and a crash or
 a hang (no result for `TIMEOUT` seconds) is charged the same way, through a
 one-thread re-run of the tests that were in flight when nothing names the
 culprit. So a failure costs one result and one extra process, and the
-`processes` count in the summary says how many the run took: eight is a
+`processes` count in the summary says how many the run took: ten is a
 clean `make test`.
 
 Explicit test selections, including recovery rounds and filtered initial runs,
@@ -262,6 +277,31 @@ removes the kept base worktrees. The metrics a benchmark writes include the
 layer's own counters, read from the `perf-kv` line of its perf windows as
 `perf.*` (`bench.rs` gives the rules): the per-frame counts of work the API
 calls fix, such as `perf.draws_pf` and `perf.passes_pf`, are the exact ones.
+
+`ARM64=1` and `EC=1` (see the `README.md`) move `make bench` and
+`make bench-ab` onto the arm64 Wine that `WINE_ARM64` names: `ARM64=1` runs
+the `ARCH` build there, `EC=1` the ARM64X build under the x86_64 benchmark
+binary, and each leg of `bench-ab` gets a private clone of that Wine with a
+fresh prefix, the way the arm64 test legs do. A benchmark measures one layout,
+so the two switches are not given together, and `EC=1 make bench-ab` needs a
+`BASE` whose Makefile has `windows-arm64x`: it stops with a message naming
+`BASE` otherwise. `make bench-variants` compares
+layouts instead of commits: this checkout's x86_64 build on the SDK's Wine
+against the same build on `WINE_ARM64` (`x86_64-sdk-vs-arm64`), and with
+`EC=1` the x86_64 build against the ARM64X one on `WINE_ARM64`
+(`x86_64-vs-arm64x`). `ARCH=i686` runs the first pair for the i686 build
+instead (`i686-sdk-vs-arm64`), the path World of Warcraft 1.12 and 3.3.5a
+take on an arm64 Wine, whose x86 translator runs our 32-bit DLLs; there is no
+ARM64X pair for it, since a 32-bit process never loads the ARM64X build. Every
+pair is a `bench-ab` run of its own whose report names each leg's runtime and
+DLL variant. Such a run has one commit in both legs, so a binary the two
+layouts share loads as one image, which the comparison notes instead of
+refusing, and the first pair runs two Wines. Read that first pair with care:
+it changes the host arch and the Wine build at once (the SDK is a patched
+CrossOver 26, `WINE_ARM64` a stock CrossOver 27), so its differences are not
+the arch's alone, for either arch. The ARM64X pair runs one Wine in both legs
+and changes only our DLLs, so it measures what the ARM64X build buys an x64
+game.
 
 `make bench-host` is the one benchmark that needs no Wine: it times DXSO
 parsing and MSL emission on this machine over two synthetic corpora and any
