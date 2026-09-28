@@ -47,10 +47,10 @@ divergences from D3D9 it keeps on purpose. The tested games are in the
   code, R, G, B, A into U, V, W, Q.
 - DXT1 to DXT5 volume textures use native BC1, BC2 and BC3 3D storage in
   every pool, with short mips, slice filtering and sRGB sampling. DXT2 and
-  DXT4 keep their identities and sample the stored blocks unchanged. ATI1
-  and packed-YUV volumes stay SCRATCH-only, and render-target usage and mip
+  DXT4 keep their identities and sample the stored blocks unchanged. ATI1,
+  ATI2 and packed-YUV volumes stay SCRATCH-only, and render-target usage and mip
   autogeneration stay unavailable on volumes.
-- Compressed (DXT1 to DXT5, ATI1), integer and float formats, cube and volume
+- Compressed (DXT1 to DXT5, ATI1, ATI2), integer and float formats, cube and volume
   textures, auto-generated mipmaps, `StretchRect` with format conversion and
   packed and planar YUV decoding, `GetDC`.
 - Planar YV12 and NV12 as DEFAULT-pool offscreen plain surfaces: they lock at

@@ -40,7 +40,7 @@ use super::{
 /// The usage-query rules below are properties of the whole table rather than
 /// of the formats that once carried a rule of their own, so they are asserted
 /// over all of it.
-const COLOUR_FORMATS: [u32; 37] = [
+const COLOUR_FORMATS: [u32; 38] = [
     mtld3d_types::D3DFMT_A8R8G8B8,
     mtld3d_types::D3DFMT_X8R8G8B8,
     mtld3d_types::D3DFMT_A8B8G8R8,
@@ -63,6 +63,7 @@ const COLOUR_FORMATS: [u32; 37] = [
     mtld3d_types::D3DFMT_G32R32F,
     mtld3d_types::D3DFMT_A32B32G32R32F,
     mtld3d_types::D3DFMT_ATI1,
+    mtld3d_types::D3DFMT_ATI2,
     mtld3d_types::D3DFMT_V8U8,
     mtld3d_types::D3DFMT_A2B10G10R10,
     mtld3d_types::D3DFMT_A2R10G10B10,
@@ -1473,4 +1474,23 @@ fn legacy_bump_map_queries_answer_no_for_every_format() {
             true
         ));
     }
+}
+
+/// ATI2N is BC5 with its two blocks in the opposite order: X is stored second.
+#[test]
+fn ati2_maps_to_bc5_with_red_and_green_swapped() {
+    let m = map_d3d_format(mtld3d_types::D3DFMT_ATI2).expect("ATI2 is mapped");
+    assert_eq!(m.metal_pixel_format(), PixelFormat::Bc5RgUnorm);
+    assert_eq!(m.bytes_per_pixel(), 0);
+    assert_eq!(
+        block_row_pitch(64, m.block_width(), m.block_bytes(), m.bytes_per_pixel()),
+        64 / 4 * 16
+    );
+    assert_eq!(
+        m.swizzle(),
+        Some([Swizzle::Green, Swizzle::Red, Swizzle::One, Swizzle::One])
+    );
+    assert_eq!(format_name(mtld3d_types::D3DFMT_ATI2), "ATI2");
+    assert!(is_mapped_color_format(mtld3d_types::D3DFMT_ATI2));
+    assert!(!is_volume_texture_format(mtld3d_types::D3DFMT_ATI2));
 }

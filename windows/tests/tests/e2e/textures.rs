@@ -9,10 +9,10 @@ use mtld3d_tests::{
 use mtld3d_types::{
     D3DBLEND_INVSRCALPHA, D3DBLEND_SRCALPHA, D3DBLEND_ZERO, D3DBOX, D3DERR_INVALIDCALL,
     D3DFMT_A1R5G5B5, D3DFMT_A4R4G4B4, D3DFMT_A8, D3DFMT_A8B8G8R8, D3DFMT_A8R8G8B8, D3DFMT_ATI1,
-    D3DFMT_DXT1, D3DFMT_DXT2, D3DFMT_DXT3, D3DFMT_DXT4, D3DFMT_DXT5, D3DFMT_INTZ, D3DFMT_L8,
-    D3DFMT_NV12, D3DFMT_Q8W8V8U8, D3DFMT_R5G6B5, D3DFMT_R8G8B8, D3DFMT_UYVY, D3DFMT_V8U8,
-    D3DFMT_V16U16, D3DFMT_X1R5G5B5, D3DFMT_X8B8G8R8, D3DFMT_X8R8G8B8, D3DFMT_YUY2, D3DFMT_YV12,
-    D3DFVF_DIFFUSE, D3DFVF_TEX1, D3DFVF_TEXTUREFORMAT3, D3DFVF_XYZ, D3DLOCK_DISCARD,
+    D3DFMT_ATI2, D3DFMT_DXT1, D3DFMT_DXT2, D3DFMT_DXT3, D3DFMT_DXT4, D3DFMT_DXT5, D3DFMT_INTZ,
+    D3DFMT_L8, D3DFMT_NV12, D3DFMT_Q8W8V8U8, D3DFMT_R5G6B5, D3DFMT_R8G8B8, D3DFMT_UYVY,
+    D3DFMT_V8U8, D3DFMT_V16U16, D3DFMT_X1R5G5B5, D3DFMT_X8B8G8R8, D3DFMT_X8R8G8B8, D3DFMT_YUY2,
+    D3DFMT_YV12, D3DFVF_DIFFUSE, D3DFVF_TEX1, D3DFVF_TEXTUREFORMAT3, D3DFVF_XYZ, D3DLOCK_DISCARD,
     D3DLOCK_NO_DIRTY_UPDATE, D3DLOCK_READONLY, D3DPOOL_DEFAULT, D3DPOOL_MANAGED, D3DPOOL_SCRATCH,
     D3DPOOL_SYSTEMMEM, D3DPT_TRIANGLELIST, D3DRECT, D3DRS_ALPHABLENDENABLE, D3DRS_DESTBLEND,
     D3DRS_SRCBLEND, D3DRTYPE_SURFACE, D3DRTYPE_VOLUME, D3DSAMP_ADDRESSU, D3DSAMP_ADDRESSV,
@@ -439,6 +439,32 @@ fn dxt1_block_samples_solid_color() {
     );
 }
 
+/// An ATI2 block samples X as red, Y as green and its missing lanes as one.
+///
+/// ATI2 stores Y in its first 8-byte half and X in its second, the reverse of
+/// the BC5 order the Metal texture is created with.
+#[test]
+fn ati2_block_samples_x_as_red_and_y_as_green() {
+    let h = Harness::new();
+    if h.device_is_paravirtual() {
+        // The paravirtual device samples a swizzle view through the base
+        // texture's lanes, and ATI2 takes its channel order from the swizzle.
+        return;
+    }
+    // One 4x4 block: each half has equal endpoints and all indices 0, so every
+    // texel decodes to that half's endpoint exactly.
+    let tex = h.create_texture(4, 4, 1, 0, D3DFMT_ATI2, D3DPOOL_MANAGED);
+    tex.lock_rect(0, 0).write::<u8>(&[
+        0x20, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Y
+        0xE0, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // X
+    ]);
+    let px = sample_center(&h, &tex);
+    assert!(
+        px.r.abs_diff(0xE0) <= 2 && px.g.abs_diff(0x20) <= 2 && px.b == 0xFF,
+        "ATI2 X=0xE0 Y=0x20 samples as red 0xE0, green 0x20, blue 0xFF, got {px:?}"
+    );
+}
+
 #[test]
 fn mip_chain_levels_and_dimensions() {
     let h = Harness::new();
@@ -740,7 +766,7 @@ fn volume_texture_level_desc_walks_the_chain() {
 #[test]
 fn scratch_extension_cubes_are_cpu_only_resources() {
     let h = Harness::new();
-    for format in [D3DFMT_ATI1, D3DFMT_YUY2, D3DFMT_UYVY] {
+    for format in [D3DFMT_ATI1, D3DFMT_ATI2, D3DFMT_YUY2, D3DFMT_UYVY] {
         assert_eq!(
             h.create_cube_texture(4, 1, 0, format, D3DPOOL_SCRATCH),
             0,
@@ -971,6 +997,7 @@ fn creates_reject_a_render_target_in_a_non_renderable_format() {
         D3DFMT_DXT1,
         D3DFMT_DXT5,
         D3DFMT_ATI1,
+        D3DFMT_ATI2,
         D3DFMT_A8,
         D3DFMT_L8,
         D3DFMT_V8U8,
@@ -1230,6 +1257,11 @@ fn premultiplied_dxt_aliases_answer_format_queries_as_dxt3_and_dxt5() {
             check(D3DUSAGE_QUERY_SRGBREAD, rtype, D3DFMT_ATI1),
             D3DERR_NOTAVAILABLE,
             "ATI1 has no twin view"
+        );
+        assert_eq!(
+            check(D3DUSAGE_QUERY_SRGBREAD, rtype, D3DFMT_ATI2),
+            D3DERR_NOTAVAILABLE,
+            "ATI2 has no twin view"
         );
     }
     for (alias, ordinary) in [(D3DFMT_DXT2, D3DFMT_DXT3), (D3DFMT_DXT4, D3DFMT_DXT5)] {

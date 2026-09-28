@@ -24,10 +24,10 @@ use mtld3d_shared::{
 };
 use mtld3d_types::{
     D3DADAPTER_IDENTIFIER9, D3DCAPS9, D3DDEVTYPE_HAL, D3DDISPLAYMODE, D3DFMT_A8B8G8R8,
-    D3DFMT_A8R8G8B8, D3DFMT_ATI1, D3DFMT_D16, D3DFMT_D24S8, D3DFMT_D24X8, D3DFMT_D32, D3DFMT_DF16,
-    D3DFMT_DF24, D3DFMT_DXT1, D3DFMT_DXT2, D3DFMT_DXT3, D3DFMT_DXT4, D3DFMT_DXT5, D3DFMT_INTZ,
-    D3DFMT_R5G6B5, D3DFMT_R8G8B8, D3DFMT_RESZ, D3DFMT_UYVY, D3DFMT_X8B8G8R8, D3DFMT_X8R8G8B8,
-    D3DFMT_YUY2, D3DMULTISAMPLE_NONE, D3DMULTISAMPLE_NONMASKABLE, D3DOK_NOAUTOGEN,
+    D3DFMT_A8R8G8B8, D3DFMT_ATI1, D3DFMT_ATI2, D3DFMT_D16, D3DFMT_D24S8, D3DFMT_D24X8, D3DFMT_D32,
+    D3DFMT_DF16, D3DFMT_DF24, D3DFMT_DXT1, D3DFMT_DXT2, D3DFMT_DXT3, D3DFMT_DXT4, D3DFMT_DXT5,
+    D3DFMT_INTZ, D3DFMT_R5G6B5, D3DFMT_R8G8B8, D3DFMT_RESZ, D3DFMT_UYVY, D3DFMT_X8B8G8R8,
+    D3DFMT_X8R8G8B8, D3DFMT_YUY2, D3DMULTISAMPLE_NONE, D3DMULTISAMPLE_NONMASKABLE, D3DOK_NOAUTOGEN,
     D3DPRESENT_PARAMETERS, D3DRTYPE_CUBETEXTURE, D3DRTYPE_SURFACE, D3DRTYPE_TEXTURE,
     D3DRTYPE_VOLUME, D3DRTYPE_VOLUMETEXTURE, D3DUSAGE_AUTOGENMIPMAP, D3DUSAGE_DEPTHSTENCIL,
     D3DUSAGE_DYNAMIC, D3DUSAGE_QUERY_POSTPIXELSHADER_BLENDING, D3DUSAGE_QUERY_SRGBREAD,
@@ -358,11 +358,12 @@ fn is_format_conversion_supported(src: u32, dst: u32, expand_packed16: bool) -> 
 // `USAGE_DEPTHSTENCIL` in the query, and only enable hardware shadow mapping
 // when at least one comes back available.
 const fn is_texture_format(fmt: u32) -> bool {
-    // ATI1 is the one carve-out, for the same reason it is excluded from the
-    // cube answer: it creates, but its lock reports the BC4 block pitch
-    // (8 bytes per 4x4 block) where D3D9 reports ATI1N a byte per pixel, so
-    // advertising it would hand callers a pitch they cannot use.
-    (mtld3d_core::format::is_mapped_color_format(fmt) && !matches!(fmt, D3DFMT_ATI1))
+    // ATI1 and ATI2 are the carve-outs, for the same reason they are excluded
+    // from the cube answer: they create, but their lock reports the BC4/BC5
+    // block pitch (8 or 16 bytes per 4x4 block) where D3D9 reports ATI1N and
+    // ATI2N a byte per pixel, so advertising them would hand callers a pitch
+    // they cannot use.
+    (mtld3d_core::format::is_mapped_color_format(fmt) && !matches!(fmt, D3DFMT_ATI1 | D3DFMT_ATI2))
         || mtld3d_core::format::is_raw_depth_fetch_format(fmt)
 }
 
@@ -377,12 +378,12 @@ const fn is_plain_surface_format(fmt: u32) -> bool {
 
 /// Sampleable cube colour formats backed by `MTLTextureTypeCube`.
 ///
-/// ATI1 requires extension-specific cube lock semantics that are not
+/// ATI1 and ATI2 require extension-specific cube lock semantics that are not
 /// implemented. Packed YUV has no shader sampling path, and depth cube maps
 /// are not implemented.
 const fn is_cube_texture_format(fmt: u32) -> bool {
     mtld3d_core::format::is_mapped_color_format(fmt)
-        && !matches!(fmt, D3DFMT_ATI1 | D3DFMT_YUY2 | D3DFMT_UYVY)
+        && !matches!(fmt, D3DFMT_ATI1 | D3DFMT_ATI2 | D3DFMT_YUY2 | D3DFMT_UYVY)
         && !is_depth_stencil_format(fmt)
 }
 

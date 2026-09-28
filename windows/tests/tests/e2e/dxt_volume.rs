@@ -287,6 +287,7 @@ fn dxt_volume_queries_pools_and_exclusions_agree() {
     }
     for format in [
         mtld3d_types::D3DFMT_ATI1,
+        mtld3d_types::D3DFMT_ATI2,
         mtld3d_types::D3DFMT_YUY2,
         mtld3d_types::D3DFMT_UYVY,
     ] {
