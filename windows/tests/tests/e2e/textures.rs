@@ -439,6 +439,32 @@ fn dxt1_block_samples_solid_color() {
     );
 }
 
+/// An ATI2 block samples X as red, Y as green and its missing lanes as one.
+///
+/// ATI2 stores Y in its first 8-byte half and X in its second, the reverse of
+/// the BC5 order the Metal texture is created with.
+#[test]
+fn ati2_block_samples_x_as_red_and_y_as_green() {
+    let h = Harness::new();
+    if h.device_is_paravirtual() {
+        // The paravirtual device samples a swizzle view through the base
+        // texture's lanes, and ATI2 takes its channel order from the swizzle.
+        return;
+    }
+    // One 4x4 block: each half has equal endpoints and all indices 0, so every
+    // texel decodes to that half's endpoint exactly.
+    let tex = h.create_texture(4, 4, 1, 0, D3DFMT_ATI2, D3DPOOL_MANAGED);
+    tex.lock_rect(0, 0).write::<u8>(&[
+        0x20, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // Y
+        0xE0, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // X
+    ]);
+    let px = sample_center(&h, &tex);
+    assert!(
+        px.r.abs_diff(0xE0) <= 2 && px.g.abs_diff(0x20) <= 2 && px.b == 0xFF,
+        "ATI2 X=0xE0 Y=0x20 samples as red 0xE0, green 0x20, blue 0xFF, got {px:?}"
+    );
+}
+
 #[test]
 fn mip_chain_levels_and_dimensions() {
     let h = Harness::new();
