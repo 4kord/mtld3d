@@ -20,6 +20,8 @@ make conformance-intel-i686     # one arch under the intel.* keys
 make conformance-scale          # both arches at render.scale = 0.75
 make conformance-scale-i686     # one arch at render.scale = 0.75 (what CI runs, on one image)
 make conformance-baseline       # (re)record this machine's six legs of baseline.txt in sequence
+ARM64=1 make conformance        # also both arches under the arm64 Wine (The arm64-runtime legs, below)
+EC=1 make conformance-arm64x    # the x86_64 binary against the ARM64X build, same Wine
 ```
 
 A leg is one architecture under one variant on one GPU family. The `intel`
@@ -47,6 +49,28 @@ Intel image is the one Mac2 machine the project runs on: dispatch the
 workflow with `record_intel_baseline` and copy the `@mac2` sections out of
 the `baseline-mac2-<arch>` artifacts (`make conformance-baseline` on an Apple
 Silicon machine leaves them untouched, the merge being leg-scoped).
+
+### The arm64-runtime legs
+
+`ARM64=1 make conformance` adds `conformance-i686-arm64` and
+`conformance-x86_64-arm64`, and `EC=1` adds `conformance-arm64x`. Each runs
+the SDK's own `d3d9_test.exe` of its arch, the binary `conformance-<arch>`
+runs (a PE test runs under any Wine), under the arm64 Wine that `WINE_ARM64`
+names: the two x86 legs against the i686 and x86_64 builds, the ARM64X leg
+the x86_64 binary against the ARM64X build. Every leg runs in a private clone
+of that Wine with its own prefix, created afresh after the leg's install and
+configured by `configure-test-prefix` as the other legs' prefixes are.
+
+None of them has baseline entries of its own. Each records under its arch's
+label, so the runner judges it against that arch's entries, which were taken
+on the x86_64 Wine the SDK is (the header's `Wine:` line names it, and the
+runner warns that the arm64 Wine's version differs), and on the same Apple GPU
+family. What a leg reports is therefore how its runtime differs from that
+baseline: CrossOver's arm64 Wine and its x86 translation, plus, for the
+ARM64X leg, the ARM64X build. How such runs should be keyed, as legs of their
+own or under the existing entries, is not decided, so none has a baseline
+target, and a site one of them moves is not reclassified here on its evidence
+alone.
 
 Set `MTLD3D_CONFORMANCE_RAW_DIR=<dir>` to also persist each subtest's full raw
 output to `<dir>/<leg>-<subtest>.log`. The normal run reduces output to per-site
@@ -264,6 +288,26 @@ record. A knob, where one makes sense, is named with its default.
   count to the pass's attachments with no per-draw override.
   `D3DPRASTERCAPS_MULTISAMPLE_TOGGLE` is not advertised, which is how D3D9
   says the toggle is unavailable, and the first write is logged. No knob.
+- **The adapter mode list leaves out the display sizes win32u cannot scale
+  the monitor to.** After a mode-set, win32u recomputes the monitor's scale
+  as `dpi * physical / size` on each axis, reduces it by the greatest common
+  divisor of its terms, and packs each term into 16 bits. CrossOver 27's
+  win32u asserts that the reduced numerator fits (`make_ratio`,
+  `sysparams.c:324`) and aborts the process when it does not; at 96 dpi on a
+  3456x2234 display that is 2992x1934, 2992x1870, 2336x1510, 2056x1329,
+  2056x1285, 1496x967, 1496x935, 1168x755 and 1168x730, all sizes Wine lists
+  itself. A CrossOver 27 build cannot be told apart from here, so the sizes
+  are left out on every Wine: `EnumAdapterModes` and the main module's
+  `EnumDisplaySettingsW` never offer one, and a fullscreen request for one
+  follows the window, as a request for no display mode does, rather than
+  setting the mode. The physical size is the largest extent on each axis of
+  Win32's mode list, which under `EmulateModeset` is the physical mode, and
+  the DPI is `GetSystemDpiForProcess`. The desktop mode always stays, and the
+  sizes left out are logged once. No site observes it directly:
+  `test_reset_fullscreen` sets the first served size other than the
+  desktop's, which was 2992x1934 and aborted the `device` subtest on
+  CrossOver 27. No knob: the sizes a knob would restore end the process on
+  the Wine that lists them.
 - **A windowed device's `SetGammaRamp` changes nothing on screen**, and only
   the implicit swap chain carries a ramp at all. The ramp is stored and
   `GetGammaRamp` reports it back either way, and it starts applying as soon as
@@ -609,9 +653,14 @@ test_window_style 5220).
 
 The mode list `EnumAdapterModes` serves is a bounded subset of
 `EnumDisplaySettingsW`'s (the sizes of the display's own aspect, largest
-first), so an enumerated mode is one win32u accepts by
-construction, and a fullscreen request for any mode in the full list is set
-whether or not the bounded list carries it. The test binary, being the
+first, then on a notched MacBook panel the sizes of the aspect of the area
+below the notch, largest first, which win32u centres so that they straddle
+the notch strip; the notch area is the mode Wine lists at the physical width
+and 3 % to 4 % shorter, and a display without one gets no second tier), so an
+enumerated mode is one win32u accepts by construction, and a fullscreen
+request for any mode in the full list is set whether or not the bounded list
+carries it. Both lists leave out the sizes win32u cannot scale the monitor to
+(see Kept divergences). The test binary, being the
 process's main module, enumerates the same bounded list through its own
 `EnumDisplaySettingsW` import (d3d9 redirects it at load; user32's list is
 untouched and `ENUM_CURRENT_SETTINGS` passes through), so a mode the test

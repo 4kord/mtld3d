@@ -44,6 +44,33 @@ matching the arch of the Wine build itself: an x86_64 Wine takes
 round. Nothing to choose: copy both, or the one your Wine needs. The PE side
 is x86 in either case.
 
+A bundle built from source with `EC=1` (the `README.md` lists what that
+build needs, the environment variables naming its toolchain among it) also carries
+`wine/aarch64-windows/`, holding `d3d9.dll` and `mtld3d.dll` as builtin-marked
+ARM64X images; release bundles do not. Copied into an arm64 Wine with the rest
+of `wine/`, they serve x64 games in prefixes created after the copy, which
+then run the PE side as native code. An x86_64 Wine never reads that
+directory.
+
+Which `d3d9.dll` an x64 process on an arm64 Wine gets is decided by
+`aarch64-windows`: `wineboot` fills a new prefix's `system32` from there, and
+a `d3d9.dll` in it that is an ARM64X image, ours or Wine's own, sends the
+loader to `aarch64-windows` for x64 processes too. The source tree's
+`make install` sets it up for either choice (see the `README.md`):
+
+- `EC=1 make install`: x64 processes get the ARM64X build; 32-bit processes
+  keep whatever `i386-windows` holds.
+- `ARM64=1 make install`: the i686 and x86_64 builds go into `i386-windows`
+  and `x86_64-windows`, and `aarch64-windows` gets x64 fake-module markers
+  for `d3d9.dll` and `mtld3d.dll` in place of any ARM64X copy, Wine's own
+  `d3d9.dll` included. x64 processes get the x86_64 build and 32-bit ones the
+  i686 build; an arm64 process has no `d3d9.dll`.
+- `EC=1 ARM64=1 make install`: all three. x64 processes get the ARM64X build,
+  32-bit processes the i686 one.
+
+Only prefixes created after the install see the change. A prefix keeps what
+`wineboot` copied into its `system32` when it was made.
+
 Common to both routes: `mtld3d.dll` + `mtld3d.so` are a custom-named Wine
 builtin pair — the PE half can only reach its unix half when loaded as a
 builtin, so there is no native variant of it. And Wine resolves builtin
@@ -313,10 +340,14 @@ The resolution picked in the game's video options therefore sizes the frame.
 `render.scale` in `mtld3d.conf` multiplies on top of it, rendering fewer
 pixels and upscaling the result to the screen.
 
-The resolution list a game sees carries sizes of the display's own aspect
-only, largest first and at most 15 per colour format, because Wine's full list
-overflows menus built for a driver's short one. Any mode Wine accepts stays
-settable whether listed or not. A request that matches no mode, such as a size
-a game derived from its own window, follows the window instead. A fullscreen
-game is never told it lost its device on a focus change: the desktop mode
-comes back on deactivation and the game's mode is set again on activation.
+The resolution list a game sees describes the primary display. It carries
+the sizes of the display's own aspect, largest first, and on a notched
+MacBook then the sizes of the area below the notch, largest first (Wine
+centres them, so they straddle the strip beside the notch), at most 15 per
+colour format, because Wine's full list overflows menus built for a driver's
+short one. Any mode Wine accepts stays settable whether listed or not, except
+the sizes some Wine builds abort on (`docs/STATUS.md`, Kept divergences). A
+request that matches no mode, such as a size a game derived from its own
+window, follows the window instead. A fullscreen game is never told it lost
+its device on a focus change: the desktop mode comes back on deactivation and
+the game's mode is set again on activation.
